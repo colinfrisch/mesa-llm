@@ -41,7 +41,7 @@ class Memory:
 
         Args:
             short_term_capacity : the number of interactions to store in the short term memory
-            api_key : the API key for the LLM
+            api_key : the API key to use for the LLM
             llm_model : the model to use for the summarization
             agent : the agent that the memory belongs to
         """
