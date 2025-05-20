@@ -33,6 +33,7 @@ class Memory:
         self,
         agent: Agent,
         short_term_capacity: int = 5,
+        consolidation_capacity: int = 2,
         api_key: str | None = os.getenv("OPENAI_API_KEY"),
         llm_model: str | None = "openai/gpt-4o-mini",
     ):
@@ -48,7 +49,8 @@ class Memory:
         self.agent = agent
         self.llm = ModuleLLM(api_key=api_key, model=llm_model)
         self.capacity = short_term_capacity
-        self.short_term_memory = deque(maxlen=self.capacity)
+        self.consolidation_capacity = consolidation_capacity
+        self.short_term_memory = deque()
         self.long_term_memory = ""
 
     def add_to_memory(
@@ -60,23 +62,26 @@ class Memory:
         new_entry = MemoryEntry(type, content, step, metadata)
         self.short_term_memory.append(new_entry)
 
+        if len(self.short_term_memory) > self.capacity + self.consolidation_capacity:
+            memories_to_consolidate = [
+                self.short_term_memory.popleft()
+                for _ in range(self.consolidation_capacity)
+            ]
+            self.update_long_term_memory(memories_to_consolidate)
+
     def get_short_term_memory(self) -> list[MemoryEntry]:
         """
         Get the short term memory
         """
         return list(self.short_term_memory)
 
-    def update_long_term_memory(self):
+    def update_long_term_memory(self, memories_to_consolidate: list[MemoryEntry]):
         """
         Update the long term memory by summarizing the short term memory with a LLM
         """
 
-        short_term_memory_dict = [
-            self.convert_entry_to_dict(entry) for entry in self.short_term_memory
-        ]
-
         prompt = f"""
-            Short term memory: {short_term_memory_dict}
+            Short term memory: {memories_to_consolidate}
             Long term memory: {self.long_term_memory}
             """
 
@@ -87,9 +92,7 @@ class Memory:
         If the long term memory is not empty, update it to include the new information from the short term memory.
         """
 
-        self.long_term_memory = self.llm.generate(
-            self.short_term_memory, self.long_term_memory, prompt, system_prompt
-        )
+        self.long_term_memory = self.llm.generate(prompt, system_prompt)
 
     def convert_entry_to_dict(self, entry: MemoryEntry) -> dict:
         """
